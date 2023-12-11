@@ -1,48 +1,61 @@
-import { Component, OnInit } from '@angular/core';
-import { firebaseConfig } from "../environments/fcm";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import {AngularFireMessaging} from "@angular/fire/compat/messaging";
-import {FirebaseApp, initializeApp} from "firebase/app";
+import { Component } from '@angular/core';
+import { initializeApp } from "firebase/app";
+import { getMessaging } from "firebase/messaging/sw";
+import { environment } from "../environments/environment";
+import { onMessage, getToken, isSupported } from "firebase/messaging";
 
 @Component({
   selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss']
+  template: `
+  Hello world<br>
+  <span>{{message}}</span>
+  `
 })
-export class AppComponent implements OnInit {
-  title = 'af-notification';
-  message: any = null;
-  firebaseApp: any = null;
-
+export class AppComponent {
+  message:any = 'xxxx';
+  messaging:any;
+  firebaseApp:any;
   constructor() {
+    this.firebaseApp = initializeApp(environment.firebase);
+    this.messaging = getMessaging(this.firebaseApp);
   }
+  ngOnInit () {
 
-  ngOnInit(): void {
-    this.firebaseApp = initializeApp(firebaseConfig);
-    this.requestPermission();
-    this.listen();
-  }
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("./firebase-messaging-sw.js")
+    .then(function (registration) {
+      console.log("Registration successful, scope is:", registration.scope);
+    })
+    .catch(function (err) {
+      console.log("Service worker registration failed, error:", err);
+    });
+}
 
-  requestPermission() {
-    const messaging = getMessaging(this.firebaseApp);
-    getToken(messaging,
-      { vapidKey: firebaseConfig.vapidKey}).then(
-      (currentToken) => {
-        if (currentToken) {
-          console.log("Hurraaa!!! we got the token.....");
-          console.log(currentToken);
+    console.log('Requesting permission...');
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        console.log('Notification permission granted.');
+      } else {
+        console.log('Unable to get permission to notify.');
+      }
+    });
+    getToken(this.messaging, { vapidKey: environment.firebase.vapidKey }).then(
+      (token) => {
+        if (token) {
+          console.log('Get token. ', token);
+          this.message = token
         } else {
           console.log('No registration token available. Request permission to generate one.');
+
+          this.message = 'Error'
         }
-      }).catch((err) => {
-      console.log('An error occurred while retrieving token. ', err);
-    });
-  }
-  listen() {
-    const messaging = getMessaging(this.firebaseApp);
-    onMessage(messaging, (payload) => {
-      console.log('Message received. ', payload);
-      this.message=payload;
+      }
+    );
+    console.log('isSupported: ', isSupported());
+    onMessage(this.messaging, (payload) => {
+      console.log('message received. ', payload);
+      this.message = payload
     });
   }
 }
